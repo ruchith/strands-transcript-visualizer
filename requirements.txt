@@ -1,0 +1,16 @@
+# Strands Agents SDK
+strands-agents>=0.1.0
+
+# Anthropic SDK for LLM integration
+anthropic>=0.18.0
+
+# AWS SDK for S3 storage support
+boto3>=1.28.0
+
+# Graph visualization libraries
+networkx>=3.0
+pyvis>=0.3.0
+
+# Additional utilities
+python-dotenv>=1.0.0
+
