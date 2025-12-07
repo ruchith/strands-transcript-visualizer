@@ -22,7 +22,8 @@ I've created a `MessageHookProvider` class that:
 1. Implements the `HookProvider` protocol
 2. Registers a callback for `MessageAddedEvent`
 3. Saves messages immediately when they're added to the conversation
-4. Supports both local filesystem and S3 storage (same as `CustomConversationManager`)
+4. Supports both local filesystem and S3 storage
+5. Saves each message to a separate file to avoid duplicates
 
 ## Usage
 
@@ -51,42 +52,26 @@ agent = Agent(
 result = agent("Hello!")
 ```
 
-### Combined with CustomConversationManager
+## Message File Format
 
-You can use both together:
-
-```python
-from conversation_manager import CustomConversationManager, MessageHookProvider
-from strands.agent import Agent
-
-# Conversation manager for sliding window management
-conversation_manager = CustomConversationManager(
-    window_size=40,
-    storage_type="local",
-    storage_path="conversations",
-)
-
-# Hook provider for real-time message capture
-message_hook = MessageHookProvider(
-    storage_type="local",
-    storage_path="conversations",
-)
-
-# Create agent with both
-agent = Agent(
-    name="MyAgent",
-    model=model,
-    conversation_manager=conversation_manager,
-    hooks=[message_hook],
-)
+Each message is saved to a separate file with the format:
+```
+{timestamp}-{agent_name}-msg{number}-{role}.json
 ```
 
-## Key Differences
+Example files:
+- `20251207092953789343-MyAgent-msg1-user.json`
+- `20251207092955819317-MyAgent-msg2-assistant.json`
+- `20251207092955886093-MyAgent-msg3-user.json`
 
-| Approach | When Messages Are Saved | Use Case |
-|----------|------------------------|----------|
-| `CustomConversationManager.apply_management()` | At the end of the entire agent invocation | Batch processing, final state capture |
-| `MessageHookProvider` (hooks) | Immediately when each message is added | Real-time monitoring, incremental logging |
+Each file contains a single message object. The visualizer can consolidate these files into a conversation for visualization.
+
+## Key Features
+
+- **Real-time capture**: Messages are saved immediately when added to the conversation
+- **Duplicate prevention**: Tracks message signatures to avoid saving duplicates
+- **Separate files**: Each message is saved to its own file for easy tracking
+- **Storage options**: Supports both local filesystem and S3 storage
 
 ## Events Available
 
@@ -104,7 +89,10 @@ Strands provides several other hook events you might find useful:
 
 1. **`conversation_manager/message_hook_provider.py`** - The hook provider implementation
 2. **`sample_agents/example_agent_with_hooks.py`** - Example showing how to use it
-3. **`conversation_manager/__init__.py`** - Updated to export `MessageHookProvider`
+3. **`sample_agents/file_report_agent_with_hooks.py`** - File report agent example with hooks
+4. **`conversation_manager/__init__.py`** - Updated to export `MessageHookProvider`
+5. **`visualizer/hook_message_visualizer.py`** - Visualizer for hook message files
+6. **`visualizer/generate_hook_report.py`** - CLI script for hook message visualization
 
 ## Testing
 
@@ -114,5 +102,19 @@ Run the example:
 python sample_agents/example_agent_with_hooks.py
 ```
 
-You should see messages being saved in real-time as the conversation progresses, rather than all at once at the end.
+You should see messages being saved in real-time as the conversation progresses, with each message saved to a separate file.
+
+## Visualization
+
+To visualize messages from hook files, use the `HookMessageVisualizer`:
+
+```bash
+# Visualize all messages from a directory
+python visualizer/generate_hook_report.py conversations/
+
+# Filter by agent name
+python visualizer/generate_hook_report.py conversations/ --agent-name MyAgent
+```
+
+See `HOOK_VISUALIZER.md` for more details on visualizing hook message files.
 
