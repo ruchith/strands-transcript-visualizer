@@ -1,0 +1,72 @@
+[build-system]
+requires = ["setuptools>=61.0", "wheel"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "strands-transcript-visualizer"
+version = "0.1.0"
+description = "A toolkit for capturing, storing, and visualizing conversations from Strands Agents"
+readme = "README.md"
+requires-python = ">=3.10"
+license = {text = "Apache-2.0"}
+authors = [
+    {name = "Ruchith Fernando", email = "ruchith.fernando@gmail.com"}
+]
+keywords = [
+    "strands",
+    "agents",
+    "visualization",
+    "conversation",
+    "llm",
+    "ai"
+]
+classifiers = [
+    "Development Status :: 3 - Alpha",
+    "Intended Audience :: Developers",
+    "License :: OSI Approved :: Apache Software License",
+    "Programming Language :: Python :: 3",
+    "Programming Language :: Python :: 3.10",
+    "Programming Language :: Python :: 3.11",
+    "Programming Language :: Python :: 3.12",
+    "Programming Language :: Python :: 3.13",
+    "Topic :: Software Development :: Libraries :: Python Modules",
+    "Topic :: Scientific/Engineering :: Artificial Intelligence",
+]
+
+dependencies = [
+    "strands-agents>=0.1.0",
+    "anthropic>=0.18.0",
+    "networkx>=3.0",
+    "pyvis>=0.3.0",
+    "python-dotenv>=1.0.0",
+]
+
+[project.optional-dependencies]
+s3 = [
+    "boto3>=1.28.0",
+]
+
+[project.scripts]
+visualize-conversation = "visualizer.generate_report:main"
+visualize-hooks = "visualizer.generate_hook_report:main"
+
+[tool.setuptools]
+packages = ["conversation_manager", "visualizer", "sample_agents"]
+
+[tool.setuptools.package-data]
+"*" = ["*.md", "*.txt", "*.json.example"]
+
+[tool.black]
+line-length = 100
+target-version = ['py310', 'py311', 'py312', 'py313']
+
+[tool.isort]
+profile = "black"
+line_length = 100
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+python_files = ["test_*.py"]
+python_classes = ["Test*"]
+python_functions = ["test_*"]
+
