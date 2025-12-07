@@ -83,6 +83,24 @@ class ConversationVisualizer:
                 print(f"Warning: Failed to load {file_path}: {e}")
         return conversations
     
+    def extract_tool_names_from_content(self, content: Any) -> List[str]:
+        """Extract tool names from content blocks.
+        
+        Args:
+            content: Message content (list of blocks or string)
+        
+        Returns:
+            List of tool names found in the content
+        """
+        tool_names = []
+        if isinstance(content, list):
+            for block in content:
+                if isinstance(block, dict) and "toolUse" in block:
+                    tool_use = block["toolUse"]
+                    tool_name = tool_use.get("name", "unknown_tool")
+                    tool_names.append(tool_name)
+        return tool_names
+    
     def extract_text_from_content(self, content: Any) -> str:
         """Extract text from content blocks."""
         if isinstance(content, str):
@@ -317,7 +335,18 @@ class ConversationVisualizer:
                 label = "initial"
             elif node_type == "assistant_request_user_response":
                 color = self.ROLE_COLORS.get("tool", self.DEFAULT_COLOR)  # Orange for tool interactions
-                label = "tool_request"
+                # Extract tool name from assistant message
+                assistant_message = node_data.get("assistant_message", {})
+                assistant_content = assistant_message.get("content", [])
+                tool_names = self.extract_tool_names_from_content(assistant_content)
+                if tool_names:
+                    # Use the first tool name, or join multiple tool names
+                    if len(tool_names) == 1:
+                        label = tool_names[0]
+                    else:
+                        label = ", ".join(tool_names)
+                else:
+                    label = "tool_request"  # Fallback if no tool name found
             elif node_type == "assistant_standalone":
                 color = self.ROLE_COLORS.get("assistant", self.DEFAULT_COLOR)
                 label = "final"
