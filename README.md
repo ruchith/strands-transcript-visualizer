@@ -20,7 +20,7 @@ A comprehensive toolkit for capturing, storing, and visualizing conversations fr
 
 1. Clone this repository:
 ```bash
-git clone <repository-url>
+git clone https://github.com/ruchith/strands-transcript-visualizer.git
 cd trajectory_visualizer
 ```
 
