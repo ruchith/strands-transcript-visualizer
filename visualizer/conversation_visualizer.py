@@ -554,10 +554,40 @@ class ConversationVisualizer:
         // Embedded visualization data
         const vizData = {data_json};
 
+        // Track current node index for keyboard navigation
+        let currentNodeIndex = 0;
+
         // Initialize
         document.getElementById('agent-name').textContent = vizData.metadata.agent_name;
         document.getElementById('timestamp').textContent = vizData.metadata.timestamp;
         document.getElementById('node-count').textContent = vizData.metadata.node_count;
+
+        // Keyboard navigation
+        document.addEventListener('keydown', (e) => {{
+            if (e.key === 'ArrowDown') {{
+                e.preventDefault();
+                if (currentNodeIndex < vizData.nodes.length - 1) {{
+                    currentNodeIndex++;
+                    showNodeDetails(vizData.nodes[currentNodeIndex]);
+                    scrollToNode(currentNodeIndex);
+                }}
+            }} else if (e.key === 'ArrowUp') {{
+                e.preventDefault();
+                if (currentNodeIndex > 0) {{
+                    currentNodeIndex--;
+                    showNodeDetails(vizData.nodes[currentNodeIndex]);
+                    scrollToNode(currentNodeIndex);
+                }}
+            }}
+        }});
+
+        // Scroll node into view
+        function scrollToNode(index) {{
+            const node = document.querySelector(`[data-node-id="${{vizData.nodes[index].id}}"]`);
+            if (node) {{
+                node.scrollIntoView({{ behavior: 'smooth', block: 'center' }});
+            }}
+        }}
 
         // Render graph
         function renderGraph() {{
@@ -573,6 +603,7 @@ class ConversationVisualizer:
                 const nodeEl = document.createElement('div');
                 nodeEl.className = `graph-node node-${{node.type}}`;
                 nodeEl.dataset.nodeId = node.id;
+                nodeEl.dataset.nodeIndex = index;
 
                 const label = document.createElement('div');
                 label.className = 'node-label';
@@ -596,7 +627,10 @@ class ConversationVisualizer:
                 nodeEl.appendChild(label);
 
                 // Add click handler
-                nodeEl.addEventListener('click', () => showNodeDetails(node));
+                nodeEl.addEventListener('click', () => {{
+                    currentNodeIndex = index;
+                    showNodeDetails(node);
+                }});
 
                 row.appendChild(nodeEl);
                 container.appendChild(row);
@@ -611,6 +645,7 @@ class ConversationVisualizer:
 
             // Show first node by default
             if (vizData.nodes.length > 0) {{
+                currentNodeIndex = 0;
                 showNodeDetails(vizData.nodes[0]);
             }}
         }}
