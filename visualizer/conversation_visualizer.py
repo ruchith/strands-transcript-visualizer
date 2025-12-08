@@ -488,6 +488,42 @@ class ConversationVisualizer:
             margin-top: 5px;
         }}
 
+        /* Tool boxes within nodes */
+        .tool-boxes-container {{
+            display: flex;
+            flex-direction: column;
+            gap: 8px;
+            margin-top: 10px;
+        }}
+
+        .tool-box {{
+            background: white;
+            border: 2px solid #FF6F00;
+            border-radius: 4px;
+            padding: 8px 12px;
+            cursor: pointer;
+            transition: all 0.2s;
+            font-size: 13px;
+        }}
+
+        .tool-box:hover {{
+            background: #FFF8E1;
+            border-color: #E65100;
+            transform: translateX(3px);
+        }}
+
+        .tool-box.active {{
+            background: #FFE0B2;
+            border-color: #E65100;
+            border-width: 3px;
+            font-weight: bold;
+        }}
+
+        .node-tool-execution.has-multiple-tools {{
+            min-width: 300px;
+            max-width: 600px;
+        }}
+
         .arrow-horizontal {{
             width: 40px;
             height: 2px;
@@ -554,8 +590,9 @@ class ConversationVisualizer:
         // Embedded visualization data
         const vizData = {data_json};
 
-        // Track current node index for keyboard navigation
+        // Track current node and tool index for keyboard navigation
         let currentNodeIndex = 0;
+        let currentToolIndex = 0;
 
         // Initialize
         document.getElementById('agent-name').textContent = vizData.metadata.agent_name;
@@ -568,15 +605,41 @@ class ConversationVisualizer:
                 e.preventDefault();
                 if (currentNodeIndex < vizData.nodes.length - 1) {{
                     currentNodeIndex++;
-                    showNodeDetails(vizData.nodes[currentNodeIndex]);
+                    currentToolIndex = 0;
+                    const node = vizData.nodes[currentNodeIndex];
+                    showNodeDetails(node, node.type === 'tool_execution' ? 0 : undefined);
                     scrollToNode(currentNodeIndex);
+                    updateActiveToolBox();
                 }}
             }} else if (e.key === 'ArrowUp') {{
                 e.preventDefault();
                 if (currentNodeIndex > 0) {{
                     currentNodeIndex--;
-                    showNodeDetails(vizData.nodes[currentNodeIndex]);
+                    currentToolIndex = 0;
+                    const node = vizData.nodes[currentNodeIndex];
+                    showNodeDetails(node, node.type === 'tool_execution' ? 0 : undefined);
                     scrollToNode(currentNodeIndex);
+                    updateActiveToolBox();
+                }}
+            }} else if (e.key === 'ArrowRight') {{
+                e.preventDefault();
+                const node = vizData.nodes[currentNodeIndex];
+                if (node.type === 'tool_execution' && node.tool_executions.length > 1) {{
+                    if (currentToolIndex < node.tool_executions.length - 1) {{
+                        currentToolIndex++;
+                        showNodeDetails(node, currentToolIndex);
+                        updateActiveToolBox();
+                    }}
+                }}
+            }} else if (e.key === 'ArrowLeft') {{
+                e.preventDefault();
+                const node = vizData.nodes[currentNodeIndex];
+                if (node.type === 'tool_execution' && node.tool_executions.length > 1) {{
+                    if (currentToolIndex > 0) {{
+                        currentToolIndex--;
+                        showNodeDetails(node, currentToolIndex);
+                        updateActiveToolBox();
+                    }}
                 }}
             }}
         }});
@@ -586,6 +649,22 @@ class ConversationVisualizer:
             const node = document.querySelector(`[data-node-id="${{vizData.nodes[index].id}}"]`);
             if (node) {{
                 node.scrollIntoView({{ behavior: 'smooth', block: 'center' }});
+            }}
+        }}
+
+        // Update active tool box highlighting
+        function updateActiveToolBox() {{
+            // Remove all active classes from tool boxes
+            document.querySelectorAll('.tool-box').forEach(box => {{
+                box.classList.remove('active');
+            }});
+
+            // Add active class to current tool box
+            const activeBox = document.querySelector(
+                `.tool-box[data-node-index="${{currentNodeIndex}}"][data-tool-index="${{currentToolIndex}}"]`
+            );
+            if (activeBox) {{
+                activeBox.classList.add('active');
             }}
         }}
 
@@ -610,27 +689,88 @@ class ConversationVisualizer:
 
                 if (node.type === 'user_initial') {{
                     label.textContent = 'Initial Request';
+                    nodeEl.appendChild(label);
+
+                    // Add click handler
+                    nodeEl.addEventListener('click', () => {{
+                        currentNodeIndex = index;
+                        currentToolIndex = 0;
+                        showNodeDetails(node);
+                    }});
                 }} else if (node.type === 'tool_execution') {{
                     const toolNames = node.tool_executions.map(t => t.tool_name);
-                    label.textContent = toolNames.length === 1 ? toolNames[0] : 'Multiple Tools';
 
-                    if (toolNames.length > 1) {{
+                    if (toolNames.length === 1) {{
+                        label.textContent = toolNames[0];
+                        nodeEl.appendChild(label);
+
+                        // Add click handler
+                        nodeEl.addEventListener('click', () => {{
+                            currentNodeIndex = index;
+                            currentToolIndex = 0;
+                            showNodeDetails(node, 0);
+                        }});
+                    }} else {{
+                        // Multiple tools - create tool boxes
+                        label.textContent = 'Multiple Tools';
+                        nodeEl.appendChild(label);
+                        nodeEl.classList.add('has-multiple-tools');
+
                         const toolCount = document.createElement('div');
                         toolCount.className = 'tool-count';
-                        toolCount.textContent = `${{toolNames.length}} tool${{toolNames.length > 1 ? 's' : ''}}`;
+                        toolCount.textContent = `${{toolNames.length}} tools`;
                         nodeEl.appendChild(toolCount);
+
+                        const toolBoxesContainer = document.createElement('div');
+                        toolBoxesContainer.className = 'tool-boxes-container';
+
+                        node.tool_executions.forEach((tool, toolIdx) => {{
+                            const toolBox = document.createElement('div');
+                            toolBox.className = 'tool-box';
+                            toolBox.textContent = tool.tool_name;
+                            toolBox.dataset.nodeIndex = index;
+                            toolBox.dataset.toolIndex = toolIdx;
+
+                            // Add click handler for each tool box
+                            toolBox.addEventListener('click', (e) => {{
+                                e.stopPropagation();
+                                currentNodeIndex = index;
+                                currentToolIndex = toolIdx;
+                                showNodeDetails(node, toolIdx);
+
+                                // Update active tool box
+                                toolBoxesContainer.querySelectorAll('.tool-box').forEach(box => {{
+                                    box.classList.remove('active');
+                                }});
+                                toolBox.classList.add('active');
+                            }});
+
+                            toolBoxesContainer.appendChild(toolBox);
+                        }});
+
+                        nodeEl.appendChild(toolBoxesContainer);
+
+                        // Add click handler for node (not tool boxes)
+                        nodeEl.addEventListener('click', (e) => {{
+                            // Only if clicking the node itself, not a tool box
+                            if (!e.target.classList.contains('tool-box')) {{
+                                currentNodeIndex = index;
+                                currentToolIndex = 0;
+                                showNodeDetails(node, 0);
+                            }}
+                        }});
                     }}
                 }} else if (node.type === 'assistant_final') {{
                     label.textContent = 'Final Response';
+                    nodeEl.appendChild(label);
+
+                    // Add click handler
+                    nodeEl.addEventListener('click', () => {{
+                        currentNodeIndex = index;
+                        currentToolIndex = 0;
+                        showNodeDetails(node);
+                    }});
                 }}
-
-                nodeEl.appendChild(label);
-
-                // Add click handler
-                nodeEl.addEventListener('click', () => {{
-                    currentNodeIndex = index;
-                    showNodeDetails(node);
-                }});
 
                 row.appendChild(nodeEl);
                 container.appendChild(row);
@@ -646,11 +786,14 @@ class ConversationVisualizer:
             // Show first node by default
             if (vizData.nodes.length > 0) {{
                 currentNodeIndex = 0;
-                showNodeDetails(vizData.nodes[0]);
+                currentToolIndex = 0;
+                const firstNode = vizData.nodes[0];
+                showNodeDetails(firstNode, firstNode.type === 'tool_execution' ? 0 : undefined);
+                updateActiveToolBox();
             }}
         }}
 
-        function showNodeDetails(node) {{
+        function showNodeDetails(node, toolIndex) {{
             // Update active state
             document.querySelectorAll('.graph-node').forEach(el => {{
                 el.classList.remove('active');
@@ -676,11 +819,16 @@ class ConversationVisualizer:
                     </div>
                 `;
 
-                // Tool executions
-                node.tool_executions.forEach((tool, idx) => {{
+                // Tool executions - show only specific tool if toolIndex is provided
+                const toolsToShow = toolIndex !== undefined
+                    ? [{{ tool: node.tool_executions[toolIndex], idx: toolIndex }}]
+                    : node.tool_executions.map((tool, idx) => ({{ tool, idx }}));
+
+                toolsToShow.forEach(({{ tool, idx }}) => {{
+                    const displayNumber = node.tool_executions.length > 1 ? `${{idx + 1}}. ` : '';
                     html += `
                         <div class="node-details tool-execution">
-                            <h3>${{idx + 1}}. <span class="tool-name">${{escapeHtml(tool.tool_name)}}</span></h3>
+                            <h3>${{displayNumber}}<span class="tool-name">${{escapeHtml(tool.tool_name)}}</span></h3>
                             <p><strong>Status:</strong> ${{tool.tool_status}}</p>
 
                             <div class="tool-input-box">
@@ -695,6 +843,17 @@ class ConversationVisualizer:
                         </div>
                     `;
                 }});
+
+                // Add navigation hint if multiple tools
+                if (node.tool_executions.length > 1) {{
+                    html += `
+                        <div class="node-details" style="background: #e3f2fd; border: 2px solid #2196F3;">
+                            <p style="margin: 0; font-size: 12px; color: #1976D2;">
+                                <strong>Navigation:</strong> Use ← → arrow keys to navigate between tools (${{toolIndex + 1}} of ${{node.tool_executions.length}})
+                            </p>
+                        </div>
+                    `;
+                }}
             }} else if (node.type === 'assistant_final') {{
                 html += `
                     <div class="node-details">
