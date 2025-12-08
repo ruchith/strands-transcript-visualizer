@@ -423,21 +423,33 @@ class ConversationVisualizer:
         /* Graph visualization */
         .graph {{
             display: flex;
-            flex-direction: row;
-            align-items: flex-start;
-            gap: 60px;
+            flex-direction: column;
+            align-items: center;
+            gap: 30px;
             padding: 40px;
+            max-width: 800px;
+            margin: 0 auto;
+        }}
+
+        .graph-row {{
+            display: flex;
+            flex-direction: row;
+            align-items: center;
+            gap: 20px;
+            width: 100%;
+            justify-content: center;
         }}
 
         .graph-node {{
-            min-width: 120px;
-            max-width: 200px;
-            padding: 15px;
+            min-width: 200px;
+            max-width: 500px;
+            padding: 15px 20px;
             border-radius: 8px;
             cursor: pointer;
             transition: all 0.2s;
             box-shadow: 0 2px 4px rgba(0,0,0,0.1);
             position: relative;
+            word-wrap: break-word;
         }}
 
         .graph-node:hover {{
@@ -476,7 +488,7 @@ class ConversationVisualizer:
             margin-top: 5px;
         }}
 
-        .arrow {{
+        .arrow-horizontal {{
             width: 40px;
             height: 2px;
             background: #999;
@@ -485,7 +497,7 @@ class ConversationVisualizer:
             flex-shrink: 0;
         }}
 
-        .arrow::after {{
+        .arrow-horizontal::after {{
             content: '';
             position: absolute;
             right: 0;
@@ -495,6 +507,27 @@ class ConversationVisualizer:
             border-left: 8px solid #999;
             border-top: 5px solid transparent;
             border-bottom: 5px solid transparent;
+        }}
+
+        .arrow-vertical {{
+            width: 2px;
+            height: 30px;
+            background: #999;
+            position: relative;
+            margin: 0 auto;
+            flex-shrink: 0;
+        }}
+
+        .arrow-vertical::after {{
+            content: '';
+            position: absolute;
+            bottom: 0;
+            left: -4px;
+            width: 0;
+            height: 0;
+            border-top: 8px solid #999;
+            border-left: 5px solid transparent;
+            border-right: 5px solid transparent;
         }}
     </style>
 </head>
@@ -532,6 +565,10 @@ class ConversationVisualizer:
             container.innerHTML = '';
 
             vizData.nodes.forEach((node, index) => {{
+                // Create a row for each node
+                const row = document.createElement('div');
+                row.className = 'graph-row';
+
                 // Create node element
                 const nodeEl = document.createElement('div');
                 nodeEl.className = `graph-node node-${{node.type}}`;
@@ -561,12 +598,13 @@ class ConversationVisualizer:
                 // Add click handler
                 nodeEl.addEventListener('click', () => showNodeDetails(node));
 
-                container.appendChild(nodeEl);
+                row.appendChild(nodeEl);
+                container.appendChild(row);
 
-                // Add arrow if not last node
+                // Add vertical arrow if not last node
                 if (index < vizData.nodes.length - 1) {{
                     const arrow = document.createElement('div');
-                    arrow.className = 'arrow';
+                    arrow.className = 'arrow-vertical';
                     container.appendChild(arrow);
                 }}
             }});
