@@ -55,33 +55,24 @@ This will:
 
 ### 2. Visualizing Conversations
 
-#### Standard Conversation Files
-
-Generate an HTML visualization from conversation files:
-
-```bash
-python visualizer/generate_report.py conversations/*.json
-```
-
-Or specify individual files:
-
-```bash
-python visualizer/generate_report.py conversations/20250107143022-ExampleAgent.json
-```
-
-#### Hook Message Files
-
-If you're using `MessageHookProvider`, visualize messages from separate files:
+Generate an HTML visualization from message files:
 
 ```bash
 # Visualize all messages from a directory
-python visualizer/generate_hook_report.py conversations/
+python visualizer/generate_report.py conversations/
 
 # Filter by agent name
-python visualizer/generate_hook_report.py conversations/ --agent-name FileReportAgentWithHooks
+python visualizer/generate_report.py conversations/ --agent-name MyAgent
+
+# Specify output filename
+python visualizer/generate_report.py conversations/ -o my_visualization.html
 ```
 
-The visualization will be saved to the `visualizations/` directory.
+The visualization will be saved to the `visualizations/` directory and includes:
+- **Markdown rendering** for message content
+- **JSON formatting** for tool inputs/results
+- **Color-coded boxes** for inputs (blue) and results (green)
+- **Interactive graph** showing conversation flow
 
 ## Usage
 
@@ -229,89 +220,44 @@ response = " ".join(block.get("text", "") for block in content_blocks if "text" 
 
 ### Visualizer
 
-#### Standard Conversation Files
-
-##### Using the CLI
+#### Using the CLI
 
 ```bash
-# Visualize a single conversation
-python visualizer/generate_report.py conversations/20250107143022-ExampleAgent.json
+# Visualize all messages from a directory
+python visualizer/generate_report.py conversations/
 
-# Visualize multiple conversations
-python visualizer/generate_report.py conversations/*.json
+# Filter by agent name
+python visualizer/generate_report.py conversations/ --agent-name MyAgent
 
 # Specify output filename
-python visualizer/generate_report.py conversations/*.json -o my_visualization.html
+python visualizer/generate_report.py conversations/ -o my_visualization.html
 
 # Specify output directory
-python visualizer/generate_report.py conversations/*.json --output-dir my_visualizations
+python visualizer/generate_report.py conversations/ --output-dir my_visualizations
 ```
 
-##### Using the Python API
+#### Using the Python API
 
 ```python
-from visualizer import ConversationVisualizer
+from visualizer import ConversationVisualizer, HookMessageVisualizer
 
-# Create visualizer
+# Option 1: Visualize from hook message files (separate message files)
+hook_viz = HookMessageVisualizer(output_dir="visualizations")
+
+# Find and consolidate messages
+message_files = hook_viz.find_message_files("conversations", agent_name="MyAgent")
+conversation = hook_viz.consolidate_messages(message_files)
+
+# Create visualization
 visualizer = ConversationVisualizer(output_dir="visualizations")
-
-# Visualize conversation files
-output_path = visualizer.visualize(
-    conversation_files=[
-        "conversations/20250107143022-ExampleAgent.json",
-        "conversations/20250107143023-ExampleAgent.json",
-    ],
-    output_filename="my_report.html",
+output_path = visualizer.create_visualization(
+    messages=conversation["messages"],
+    agent_name=conversation["agent_name"],
+    timestamp=conversation["timestamp"],
 )
 
 print(f"Visualization saved to: {output_path}")
 ```
-
-#### Hook Message Files
-
-##### Using the CLI
-
-```bash
-# Visualize all messages from a directory
-python visualizer/generate_hook_report.py conversations/
-
-# Filter by agent name
-python visualizer/generate_hook_report.py conversations/ --agent-name MyAgent
-
-# Create consolidated JSON file
-python visualizer/generate_hook_report.py conversations/ \
-    --consolidate-json conversations/consolidated.json
-```
-
-##### Using the Python API
-
-```python
-from visualizer import HookMessageVisualizer
-
-# Create visualizer
-visualizer = HookMessageVisualizer(output_dir="visualizations")
-
-# Option 1: Visualize from directory
-output_path = visualizer.visualize_from_directory(
-    directory="conversations",
-    agent_name="MyAgent",  # Optional
-)
-
-# Option 2: Visualize from specific files
-message_files = [
-    "conversations/20251207092953789343-MyAgent-msg1-user.json",
-    "conversations/20251207092955819317-MyAgent-msg2-assistant.json",
-]
-output_path = visualizer.visualize_from_files(message_files)
-
-# Option 3: Create consolidated JSON
-json_path = visualizer.create_consolidated_json(
-    message_files,
-    output_path="conversations/consolidated.json"
-)
-```
-
-See `HOOK_VISUALIZER.md` for more details on visualizing hook message files.
 
 ## File Format
 
@@ -357,11 +303,17 @@ Create a `.env` file (see `.env.example`) with:
 
 The HTML visualizer provides:
 
-- **Directed Graph**: Messages are shown as nodes connected in chronological order
-- **Color Coding**: Different colors for user (blue), assistant (green), system (red), and tool (orange) messages
-- **Interactive Nodes**: Click on any node to view the full message content in a popup viewer
-- **Multiple Conversations**: Visualize multiple conversation files in a single graph
-- **Timeline View**: Messages are arranged to show the conversation flow
+- **Horizontal Graph Flow**: Conversation nodes displayed left-to-right showing progression
+- **Color Coding**:
+  - Blue nodes: Initial user requests
+  - Orange nodes: Tool executions (showing tool names)
+  - Green nodes: Final assistant responses
+- **Detailed Side Panel**: Click any node to view:
+  - Full message content with **markdown rendering**
+  - Tool inputs (blue boxes) with **JSON formatting**
+  - Tool results (green boxes) with **JSON formatting** or markdown
+- **Interactive Navigation**: Click nodes in the graph or details panel to explore the conversation
+- **No External Dependencies**: Self-contained HTML with only marked.js from CDN
 
 ## Project Structure
 
@@ -380,12 +332,10 @@ trajectory_visualizer/
 │   ├── __init__.py
 │   ├── conversation_visualizer.py
 │   ├── hook_message_visualizer.py
-│   ├── generate_report.py
-│   └── generate_hook_report.py
+│   └── generate_report.py
 ├── requirements.txt
 ├── README.md
 ├── REALTIME_MESSAGES.md
-├── HOOK_VISUALIZER.md
 └── .env.example
 ```
 
@@ -394,9 +344,9 @@ trajectory_visualizer/
 - `strands-agents`: Strands Agents SDK
 - `anthropic`: Anthropic SDK for Claude
 - `boto3`: AWS SDK for S3 support
-- `networkx`: Graph structure library
-- `pyvis`: Interactive network visualization
 - `python-dotenv`: Environment variable management
+
+**Note**: The visualizer uses only pure Python with no additional dependencies. The generated HTML includes marked.js from CDN for markdown rendering.
 
 ## Troubleshooting
 
@@ -427,11 +377,7 @@ aws configure
 
 ### Visualization Not Displaying
 
-Make sure you have all visualization dependencies:
-
-```bash
-pip install networkx pyvis
-```
+The visualization is a self-contained HTML file. Simply open it in any modern web browser. No additional dependencies are required.
 
 ## License
 
