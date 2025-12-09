@@ -37,12 +37,13 @@ os.environ["BYPASS_TOOL_CONSENT"] = "true"
 # Add parent directory to path to import message hook provider
 sys.path.insert(0, str(Path(__file__).parent.parent))
 
-from hooks import MessageHookProvider
+from hooks import MessageHookProvider, CachePointHookProvider
 
 try:
     from strands.agent import Agent
     from strands.models.anthropic import AnthropicModel
     from strands.tools.decorator import tool
+    from strands.types.content import SystemContentBlock
 except ImportError:
     raise ImportError(
         "Could not import Strands Agent, AnthropicModel, or tool decorator. "
@@ -219,6 +220,7 @@ def create_repo_analysis_agent(
     storage_path: str = "conversations",
     s3_bucket: str = None,
     use_realtime_hooks: bool = True,
+    enable_cache_points: bool = True,
 ):
     """Create an agent that analyzes GitHub repositories.
     
@@ -230,6 +232,7 @@ def create_repo_analysis_agent(
         storage_path: Local directory path or S3 prefix
         s3_bucket: S3 bucket name (required if storage_type is 's3')
         use_realtime_hooks: Whether to use real-time message hooks (default: True)
+        enable_cache_points: Whether to add cachePoint to (n-2)nd messages (default: True)
     
     Returns:
         Configured Agent instance with repository analysis tools and real-time message capture
@@ -249,8 +252,27 @@ def create_repo_analysis_agent(
         max_tokens=max_tokens,
     )
     
+    # Create system prompt with prompt caching enabled
+    # Prompt caching reduces token usage by caching the system prompt across requests
+    system_prompt_content = [
+        SystemContentBlock(
+            text=(
+                "You are an expert codebase analysis agent. Your role is to analyze GitHub repositories "
+                "by exploring their structure, understanding their architecture, and identifying patterns "
+                "and conventions. Use the available tools (clone_repository, get_git_log, file_read, editor, shell) "
+                "to thoroughly explore repositories and create comprehensive analysis documents."
+            )
+        ),
+        SystemContentBlock(cachePoint={"type": "default"}),  # Enable prompt caching
+    ]
+    
     # Create hooks list
     hooks = []
+    
+    # Add cache point hook provider to optimize token usage
+    if enable_cache_points:
+        cache_point_hook = CachePointHookProvider(enabled=True)
+        hooks.append(cache_point_hook)
     
     # Add real-time message hook provider if requested
     if use_realtime_hooks:
@@ -267,6 +289,7 @@ def create_repo_analysis_agent(
     agent = Agent(
         name="RepoAnalysisAgent",
         model=llm,
+        system_prompt=system_prompt_content,  # Use system prompt with caching enabled
         tools=[
             clone_repository,  # Custom tool for cloning repositories
             get_git_log,       # Custom tool for git history analysis
