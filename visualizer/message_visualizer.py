@@ -522,7 +522,20 @@ class MessageVisualizer:
     def _generate_html(self, viz_data: Dict[str, Any]) -> str:
         """Generate HTML with embedded visualization data."""
         # Convert data to JSON string
-        data_json = json.dumps(viz_data, indent=2, ensure_ascii=False)
+        # Use ensure_ascii=True to properly escape non-ASCII characters for JavaScript
+        data_json = json.dumps(viz_data, indent=2, ensure_ascii=True)
+        
+        # Escape the JSON string for safe embedding in JavaScript template literal
+        # json.dumps() already escapes quotes and backslashes for JSON
+        # But we need additional escaping for JavaScript template literals
+        # Order matters: escape backslashes first, then other characters
+        data_json_escaped = (
+            data_json
+            .replace('\\', '\\\\')  # Escape backslashes (must be first)
+            .replace('`', '\\`')  # Escape backticks to prevent template literal break
+            .replace('${', '\\${')  # Escape template literal expressions
+            .replace('</script>', '<\\/script>')  # Escape script closing tags
+        )
         
         html = f"""<!DOCTYPE html>
 <html>
@@ -879,7 +892,8 @@ class MessageVisualizer:
 
     <script>
         // Embedded visualization data
-        const vizData = {data_json};
+        // Use JSON.parse to safely parse the JSON string, avoiding JavaScript syntax errors
+        const vizData = JSON.parse(`{data_json_escaped}`);
 
         // Panel resizing functionality
         const resizeHandle = document.getElementById('resize-handle');

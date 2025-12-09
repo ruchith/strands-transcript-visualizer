@@ -1,6 +1,9 @@
 # Strands Agents SDK
 strands-agents>=0.1.0
 
+# Strands Agents Tools (includes editor, file_read, shell)
+strands-agents-tools>=0.1.0
+
 # Anthropic SDK for LLM integration
 anthropic>=0.18.0
 
