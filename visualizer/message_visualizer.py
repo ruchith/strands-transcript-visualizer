@@ -745,11 +745,21 @@ class MessageVisualizer:
             display: flex;
             flex-direction: row;
             flex-wrap: wrap;
-            align-items: flex-start;
-            gap: 20px;
+            align-items: center;
+            gap: 0;
+            row-gap: 40px;
             padding: 20px;
             width: 100%;
             justify-content: flex-start;
+        }}
+        
+        .graph > * {{
+            margin-right: 0;
+        }}
+        
+        .graph > .arrow-horizontal {{
+            margin-left: 0;
+            margin-right: 0;
         }}
 
         .graph-node {{
@@ -764,6 +774,20 @@ class MessageVisualizer:
             position: relative;
             word-wrap: break-word;
             flex-shrink: 0;
+        }}
+        
+        .node-number {{
+            position: absolute;
+            top: 5px;
+            right: 5px;
+            background: rgba(0, 0, 0, 0.6);
+            color: white;
+            font-size: 10px;
+            font-weight: bold;
+            padding: 2px 5px;
+            border-radius: 3px;
+            line-height: 1;
+            z-index: 10;
         }}
 
         .graph-node:hover {{
@@ -852,12 +876,16 @@ class MessageVisualizer:
         }}
 
         .arrow-horizontal {{
-            width: 40px;
+            width: 20px;
             height: 2px;
             background: #999;
             position: relative;
-            margin: 0 10px;
+            margin: 0;
             flex-shrink: 0;
+            align-self: center;
+            flex-grow: 0;
+            margin-left: -1px;
+            margin-right: -1px;
         }}
 
         .arrow-horizontal::after {{
@@ -1069,6 +1097,12 @@ class MessageVisualizer:
                 nodeEl.className = `graph-node node-${{node.type}}`;
                 nodeEl.dataset.nodeId = node.id;
                 nodeEl.dataset.nodeIndex = index;
+
+                // Add node number badge at top right
+                const nodeNumber = document.createElement('div');
+                nodeNumber.className = 'node-number';
+                nodeNumber.textContent = (index + 1).toString();
+                nodeEl.appendChild(nodeNumber);
 
                 const label = document.createElement('div');
                 label.className = 'node-label';
