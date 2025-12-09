@@ -549,19 +549,47 @@ class MessageVisualizer:
             height: 100vh;
         }}
 
-        .details-panel {{
-            width: 40%;
-            background: #f5f5f5;
-            padding: 20px;
-            overflow-y: auto;
-            border-right: 2px solid #ddd;
-        }}
-
         .graph-panel {{
-            width: 60%;
+            flex: 0 0 30%;
             background: white;
             padding: 20px;
             overflow: auto;
+            min-width: 200px;
+        }}
+
+        .graph-panel:focus {{
+            outline: none;
+        }}
+
+        .resize-handle {{
+            width: 4px;
+            background: #ddd;
+            cursor: col-resize;
+            flex-shrink: 0;
+            position: relative;
+            transition: background 0.2s;
+        }}
+
+        .resize-handle:hover {{
+            background: #999;
+        }}
+
+        .resize-handle::before {{
+            content: '';
+            position: absolute;
+            left: -2px;
+            top: 0;
+            width: 8px;
+            height: 100%;
+            cursor: col-resize;
+        }}
+
+        .details-panel {{
+            flex: 0 0 70%;
+            background: #f5f5f5;
+            padding: 20px;
+            overflow-y: auto;
+            min-width: 200px;
         }}
 
         .header {{
@@ -829,8 +857,14 @@ class MessageVisualizer:
     </style>
 </head>
 <body>
-    <div class="container">
-        <div class="details-panel">
+        <div class="container">
+        <div class="graph-panel" id="graph-panel" tabindex="0">
+            <div id="graph-container" class="graph"></div>
+        </div>
+
+        <div class="resize-handle" id="resize-handle"></div>
+
+        <div class="details-panel" id="details-panel">
             <div class="header">
                 <h1>Conversation Details</h1>
                 <p><strong>Agent:</strong> <span id="agent-name"></span></p>
@@ -841,15 +875,69 @@ class MessageVisualizer:
                 <p>Click a node to view details</p>
             </div>
         </div>
-
-        <div class="graph-panel">
-            <div id="graph-container" class="graph"></div>
-        </div>
     </div>
 
     <script>
         // Embedded visualization data
         const vizData = {data_json};
+
+        // Panel resizing functionality
+        const resizeHandle = document.getElementById('resize-handle');
+        const graphPanel = document.getElementById('graph-panel');
+        const detailsPanel = document.getElementById('details-panel');
+        const container = document.querySelector('.container');
+
+        let isResizing = false;
+        let startX = 0;
+        let startGraphWidth = 0;
+        let startDetailsWidth = 0;
+
+        resizeHandle.addEventListener('mousedown', (e) => {{
+            isResizing = true;
+            startX = e.clientX;
+            startGraphWidth = graphPanel.offsetWidth;
+            startDetailsWidth = detailsPanel.offsetWidth;
+            document.body.style.cursor = 'col-resize';
+            document.body.style.userSelect = 'none';
+            e.preventDefault();
+        }});
+
+        document.addEventListener('mousemove', (e) => {{
+            if (!isResizing) return;
+
+            const deltaX = e.clientX - startX;
+            const containerWidth = container.offsetWidth;
+            const resizeHandleWidth = resizeHandle.offsetWidth;
+
+            // Calculate new widths
+            let newGraphWidth = startGraphWidth + deltaX;
+            let newDetailsWidth = startDetailsWidth - deltaX;
+
+            // Enforce minimum widths (200px each)
+            const minWidth = 200;
+            if (newGraphWidth < minWidth) {{
+                newGraphWidth = minWidth;
+                newDetailsWidth = containerWidth - resizeHandleWidth - minWidth;
+            }}
+            if (newDetailsWidth < minWidth) {{
+                newDetailsWidth = minWidth;
+                newGraphWidth = containerWidth - resizeHandleWidth - minWidth;
+            }}
+
+            // Update panel widths
+            graphPanel.style.flex = `0 0 ${{newGraphWidth}}px`;
+            detailsPanel.style.flex = `0 0 ${{newDetailsWidth}}px`;
+
+            e.preventDefault();
+        }});
+
+        document.addEventListener('mouseup', () => {{
+            if (isResizing) {{
+                isResizing = false;
+                document.body.style.cursor = '';
+                document.body.style.userSelect = '';
+            }}
+        }});
 
         // Track current node and tool index for keyboard navigation
         let currentNodeIndex = 0;
@@ -1054,6 +1142,11 @@ class MessageVisualizer:
             }}
         }}
 
+        // Focus the graph panel when clicked so arrow keys work
+        graphPanel.addEventListener('click', () => {{
+            graphPanel.focus();
+        }});
+
         function showNodeDetails(node, toolIndex) {{
             // Update active state
             document.querySelectorAll('.graph-node').forEach(el => {{
@@ -1163,6 +1256,9 @@ class MessageVisualizer:
 
         // Initial render
         renderGraph();
+        
+        // Focus the graph panel so arrow keys work immediately
+        graphPanel.focus();
     </script>
 </body>
 </html>"""
