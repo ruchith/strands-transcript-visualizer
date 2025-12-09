@@ -743,26 +743,19 @@ class MessageVisualizer:
         /* Graph visualization */
         .graph {{
             display: flex;
-            flex-direction: column;
-            align-items: center;
-            gap: 30px;
-            padding: 40px;
-            max-width: 800px;
-            margin: 0 auto;
-        }}
-
-        .graph-row {{
-            display: flex;
             flex-direction: row;
-            align-items: center;
+            flex-wrap: wrap;
+            align-items: flex-start;
             gap: 20px;
+            padding: 20px;
             width: 100%;
-            justify-content: center;
+            justify-content: flex-start;
         }}
 
         .graph-node {{
-            min-width: 200px;
-            max-width: 500px;
+            min-width: 180px;
+            max-width: 300px;
+            width: 180px;
             padding: 15px 20px;
             border-radius: 8px;
             cursor: pointer;
@@ -770,6 +763,7 @@ class MessageVisualizer:
             box-shadow: 0 2px 4px rgba(0,0,0,0.1);
             position: relative;
             word-wrap: break-word;
+            flex-shrink: 0;
         }}
 
         .graph-node:hover {{
@@ -780,6 +774,15 @@ class MessageVisualizer:
         .graph-node.active {{
             border: 3px solid #2196F3;
             box-shadow: 0 4px 12px rgba(33, 150, 243, 0.4);
+            background: #BBDEFB !important; /* Light blue background for active state */
+        }}
+        
+        .graph-node.active.node-tool-execution {{
+            background: #FFE0B2 !important; /* Light orange for active tool execution nodes */
+        }}
+        
+        .graph-node.active.node-assistant-final {{
+            background: #C8E6C9 !important; /* Light green for active assistant final nodes */
         }}
 
         .node-user-initial {{
@@ -800,6 +803,9 @@ class MessageVisualizer:
         .node-label {{
             font-weight: bold;
             margin-bottom: 8px;
+            white-space: nowrap;
+            overflow: hidden;
+            text-overflow: ellipsis;
         }}
 
         .tool-count {{
@@ -840,8 +846,9 @@ class MessageVisualizer:
         }}
 
         .node-tool-execution.has-multiple-tools {{
-            min-width: 300px;
-            max-width: 600px;
+            min-width: 250px;
+            max-width: 300px;
+            width: 250px;
         }}
 
         .arrow-horizontal {{
@@ -981,8 +988,10 @@ class MessageVisualizer:
         document.getElementById('node-count').textContent = vizData.metadata.node_count;
 
         // Keyboard navigation
+        // Left/Right arrows: Navigate between top-level nodes
+        // Up/Down arrows: Navigate between tools within a node
         document.addEventListener('keydown', (e) => {{
-            if (e.key === 'ArrowDown') {{
+            if (e.key === 'ArrowRight') {{
                 e.preventDefault();
                 if (currentNodeIndex < vizData.nodes.length - 1) {{
                     currentNodeIndex++;
@@ -992,7 +1001,7 @@ class MessageVisualizer:
                     scrollToNode(currentNodeIndex);
                     updateActiveToolBox();
                 }}
-            }} else if (e.key === 'ArrowUp') {{
+            }} else if (e.key === 'ArrowLeft') {{
                 e.preventDefault();
                 if (currentNodeIndex > 0) {{
                     currentNodeIndex--;
@@ -1002,7 +1011,7 @@ class MessageVisualizer:
                     scrollToNode(currentNodeIndex);
                     updateActiveToolBox();
                 }}
-            }} else if (e.key === 'ArrowRight') {{
+            }} else if (e.key === 'ArrowDown') {{
                 e.preventDefault();
                 const node = vizData.nodes[currentNodeIndex];
                 if (node.type === 'tool_execution' && node.tool_executions.length > 1) {{
@@ -1012,7 +1021,7 @@ class MessageVisualizer:
                         updateActiveToolBox();
                     }}
                 }}
-            }} else if (e.key === 'ArrowLeft') {{
+            }} else if (e.key === 'ArrowUp') {{
                 e.preventDefault();
                 const node = vizData.nodes[currentNodeIndex];
                 if (node.type === 'tool_execution' && node.tool_executions.length > 1) {{
@@ -1055,10 +1064,6 @@ class MessageVisualizer:
             container.innerHTML = '';
 
             vizData.nodes.forEach((node, index) => {{
-                // Create a row for each node
-                const row = document.createElement('div');
-                row.className = 'graph-row';
-
                 // Create node element
                 const nodeEl = document.createElement('div');
                 nodeEl.className = `graph-node node-${{node.type}}`;
@@ -1153,13 +1158,13 @@ class MessageVisualizer:
                     }});
                 }}
 
-                row.appendChild(nodeEl);
-                container.appendChild(row);
+                // Add node directly to container
+                container.appendChild(nodeEl);
 
-                // Add vertical arrow if not last node
+                // Add horizontal arrow if not last node
                 if (index < vizData.nodes.length - 1) {{
                     const arrow = document.createElement('div');
-                    arrow.className = 'arrow-vertical';
+                    arrow.className = 'arrow-horizontal';
                     container.appendChild(arrow);
                 }}
             }});
@@ -1235,7 +1240,7 @@ class MessageVisualizer:
                     html += `
                         <div class="node-details" style="background: #e3f2fd; border: 2px solid #2196F3;">
                             <p style="margin: 0; font-size: 12px; color: #1976D2;">
-                                <strong>Navigation:</strong> Use ← → arrow keys to navigate between tools (${{toolIndex + 1}} of ${{node.tool_executions.length}})
+                                <strong>Navigation:</strong> Use ↑ ↓ arrow keys to navigate between tools (${{toolIndex + 1}} of ${{node.tool_executions.length}})
                             </p>
                         </div>
                     `;
