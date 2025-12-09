@@ -1,4 +1,9 @@
-"""Example agent using Strands with Anthropic and custom conversation manager."""
+"""Example agent using Strands with real-time message hooks.
+
+This example demonstrates how to use MessageHookProvider to capture messages
+as they're added to the conversation in real-time, rather than waiting for
+the end of the conversation.
+"""
 
 import os
 import sys
@@ -18,10 +23,10 @@ except ImportError:
     # python-dotenv not installed, skip loading .env file
     pass
 
-# Add parent directory to path to import custom conversation manager
+# Add parent directory to path to import message hook provider
 sys.path.insert(0, str(Path(__file__).parent.parent))
 
-from conversation_manager import CustomConversationManager
+from hooks import MessageHookProvider
 
 try:
     from strands.agent import Agent
@@ -40,8 +45,9 @@ def create_example_agent(
     storage_type: str = "local",
     storage_path: str = "conversations",
     s3_bucket: str = None,
+    use_realtime_hooks: bool = True,
 ):
-    """Create an example agent with custom conversation manager.
+    """Create an example agent with real-time message hooks.
     
     Args:
         anthropic_api_key: Anthropic API key (defaults to ANTHROPIC_API_KEY env var)
@@ -50,9 +56,10 @@ def create_example_agent(
         storage_type: Storage backend type ('local' or 's3')
         storage_path: Local directory path or S3 prefix
         s3_bucket: S3 bucket name (required if storage_type is 's3')
+        use_realtime_hooks: Whether to use real-time message hooks (default: True)
     
     Returns:
-        Configured Agent instance
+        Configured Agent instance with real-time message capture
     """
     # Get API key from parameter or environment
     api_key = anthropic_api_key or os.getenv("ANTHROPIC_API_KEY")
@@ -63,48 +70,57 @@ def create_example_agent(
         )
     
     # Initialize Anthropic LLM with specified model
-    # client_args contains the API key, model_config contains model_id and max_tokens
     llm = AnthropicModel(
         client_args={"api_key": api_key},
         model_id=model,
-        max_tokens=max_tokens,  # Set max_tokens for response length
+        max_tokens=max_tokens,
     )
     
-    # Initialize custom conversation manager
-    conversation_manager = CustomConversationManager(
-        window_size=40,
-        should_truncate_results=True,
-        storage_type=storage_type,
-        storage_path=storage_path,
-        s3_bucket=s3_bucket,
-    )
+    # Create hooks list
+    hooks = []
     
-    # Create agent (Agent takes 'model' not 'llm')
+    # Add real-time message hook provider if requested
+    if use_realtime_hooks:
+        message_hook = MessageHookProvider(
+            storage_type=storage_type,
+            storage_path=storage_path,
+            s3_bucket=s3_bucket,
+            agent_name="ExampleAgent",
+        )
+        hooks.append(message_hook)
+    
+    # Create agent with hooks only (no custom conversation manager)
+    # Strands will use the default SlidingWindowConversationManager for conversation management
     agent = Agent(
         name="ExampleAgent",
         model=llm,
-        conversation_manager=conversation_manager,
+        hooks=hooks,  # Pass hooks to agent for real-time message capture
     )
     
     return agent
 
 
 def main():
-    """Run example agent interactions."""
-    print("Creating example agent...")
+    """Run example agent with real-time message hooks."""
+    print("Creating example agent with real-time message hooks...")
     
     try:
-        # Create agent with local storage
-        agent = create_example_agent(storage_type="local", storage_path="conversations")
+        # Create agent with real-time hooks enabled
+        agent = create_example_agent(
+            storage_type="local",
+            storage_path="conversations",
+            use_realtime_hooks=True,
+        )
         
         print("\nAgent created successfully!")
+        print("Real-time message capture is enabled.")
+        print("Messages will be saved immediately as they're added to the conversation.\n")
         print("Starting example conversation...\n")
         
         # Example interactions
         questions = [
             "Hello! Can you tell me a fun fact about space?",
             "What is the capital of France?",
-            "Can you explain what machine learning is in simple terms?",
         ]
         
         for i, question in enumerate(questions, 1):
@@ -112,24 +128,27 @@ def main():
             # Agent is callable - use agent(prompt) instead of agent.run(prompt)
             result = agent(question)
             # Extract text from AgentResult.message.content
-            # Message.content is a list of ContentBlock objects (TypedDict)
             message = result.message
             content_blocks = message.get("content", [])
             # Extract text from content blocks
             response_texts = []
             for block in content_blocks:
-                # ContentBlock is a TypedDict, access text directly
                 if "text" in block:
                     response_texts.append(block["text"])
             response = " ".join(response_texts) if response_texts else str(result)
             print(f"Response: {response}\n")
+            print("(Message was saved in real-time when it was added)\n")
         
         print("Conversation completed!")
-        print(f"Messages have been saved to the 'conversations' directory.")
-        print("Check the directory for files named: <timestamp>-ExampleAgent.json")
+        print(f"Messages have been saved in real-time to the 'conversations' directory.")
+        print("Check the directory for files named: <timestamp>-ExampleAgent-msg<number>-<role>.json")
+        print("\nNote: Each message (LLM response and tool results) was saved immediately")
+        print("to a separate file when it was added to the conversation, not at the end.")
         
     except Exception as e:
         print(f"Error: {e}")
+        import traceback
+        traceback.print_exc()
         sys.exit(1)
 
 

@@ -51,7 +51,7 @@ visualize-conversation = "visualizer.generate_report:main"
 visualize-hooks = "visualizer.generate_hook_report:main"
 
 [tool.setuptools]
-packages = ["conversation_manager", "visualizer", "sample_agents"]
+packages = ["hooks", "visualizer", "sample_agents"]
 
 [tool.setuptools.package-data]
 "*" = ["*.md", "*.txt", "*.json.example"]

@@ -1,28 +1,338 @@
-"""Conversation visualizer that creates clean JSON for HTML/JS rendering."""
+"""HTML visualizer for agent conversations from MessageHookProvider output files.
+
+This visualizer works with the separate message files created by MessageHookProvider,
+where each message is saved to its own file. It consolidates these files into a
+conversation array and creates interactive HTML visualizations.
+"""
 
 import json
 import os
+import re
 from pathlib import Path
 from typing import List, Dict, Any, Optional
 from datetime import datetime
 
 
-class ConversationVisualizer:
-    """Creates a JSON representation for conversation visualization."""
-
+class MessageVisualizer:
+    """Creates interactive HTML visualizations from MessageHookProvider message files.
+    
+    This class handles finding message files, consolidating them into conversations,
+    and generating interactive HTML visualizations.
+    """
+    
     def __init__(self, output_dir: str = "visualizations"):
         """Initialize the visualizer.
-
+        
         Args:
             output_dir: Directory to save generated HTML files
         """
         self.output_dir = output_dir
         if not os.path.exists(self.output_dir):
             os.makedirs(self.output_dir, exist_ok=True)
-
+    
+    def find_message_files(
+        self,
+        directory: str,
+        agent_name: Optional[str] = None,
+        pattern: Optional[str] = None,
+    ) -> List[str]:
+        """Find all message files in a directory.
+        
+        Args:
+            directory: Directory to search for message files
+            agent_name: Optional agent name to filter by (if None, finds all agents)
+            pattern: Optional glob pattern to match files (default: *-msg*.json)
+        
+        Returns:
+            List of file paths to message files, sorted by message number
+        """
+        directory_path = Path(directory)
+        if not directory_path.exists():
+            raise ValueError(f"Directory does not exist: {directory}")
+        
+        # Default pattern matches MessageHookProvider filename format
+        if pattern is None:
+            if agent_name:
+                # Filter by agent name
+                safe_agent_name = "".join(c for c in agent_name if c.isalnum() or c in ("-", "_"))
+                pattern = f"*-{safe_agent_name}-msg*.json"
+            else:
+                pattern = "*-msg*.json"
+        
+        # Find all matching files
+        message_files = list(directory_path.glob(pattern))
+        
+        # Sort by message number extracted from filename
+        def extract_message_number(filepath: Path) -> int:
+            """Extract message number from filename.
+            
+            Format: <timestamp>-<agent_name>-msg<number>-<role>.json
+            """
+            filename = filepath.name
+            # Match pattern: -msg<number>-
+            match = re.search(r'-msg(\d+)-', filename)
+            if match:
+                return int(match.group(1))
+            # Fallback: use timestamp if message number not found
+            # Extract timestamp (first part before first dash)
+            timestamp_match = re.match(r'^(\d+)', filename)
+            if timestamp_match:
+                return int(timestamp_match.group(1))
+            return 0
+        
+        # Sort by message number
+        message_files.sort(key=extract_message_number)
+        
+        return [str(f) for f in message_files]
+    
+    def consolidate_messages(self, message_files: List[str]) -> Dict[str, Any]:
+        """Consolidate multiple message files into a single conversation.
+        
+        Args:
+            message_files: List of paths to individual message JSON files
+        
+        Returns:
+            Dictionary containing consolidated conversation data and metadata
+        """
+        if not message_files:
+            raise ValueError("No message files provided")
+        
+        messages = []
+        agent_name = None
+        timestamps = []
+        
+        # Load all messages
+        for file_path in message_files:
+            try:
+                with open(file_path, "r", encoding="utf-8") as f:
+                    message = json.load(f)
+                    messages.append(message)
+                
+                # Extract metadata from filename
+                filename = Path(file_path).name
+                # Format: <timestamp>-<agent_name>-msg<number>-<role>.json
+                parts = filename.replace(".json", "").split("-")
+                
+                # Extract timestamp (first part)
+                if parts:
+                    timestamp_str = parts[0]
+                    timestamps.append(timestamp_str)
+                
+                # Extract agent name (everything between timestamp and "msg")
+                # Find the index of the part that starts with "msg"
+                msg_index = None
+                for i, part in enumerate(parts):
+                    if part.startswith("msg"):
+                        msg_index = i
+                        break
+                
+                if msg_index and msg_index > 1:
+                    # Agent name is between timestamp (index 0) and msg part
+                    agent_parts = parts[1:msg_index]
+                    if agent_parts and not agent_name:
+                        agent_name = "-".join(agent_parts)
+                
+            except Exception as e:
+                print(f"Warning: Failed to load message file {file_path}: {e}")
+                continue
+        
+        if not messages:
+            raise ValueError("No valid messages could be loaded from files")
+        
+        # Use earliest timestamp as conversation timestamp
+        timestamps.sort()
+        conversation_timestamp = timestamps[0] if timestamps else "unknown"
+        
+        # Default agent name if not found
+        if not agent_name:
+            # Try to extract from first filename
+            first_filename = Path(message_files[0]).name
+            parts = first_filename.replace(".json", "").split("-")
+            if len(parts) > 1:
+                # Find msg index
+                msg_index = None
+                for i, part in enumerate(parts):
+                    if part.startswith("msg"):
+                        msg_index = i
+                        break
+                if msg_index and msg_index > 1:
+                    agent_parts = parts[1:msg_index]
+                    agent_name = "-".join(agent_parts)
+                else:
+                    agent_name = "UnknownAgent"
+            else:
+                agent_name = "UnknownAgent"
+        
+        return {
+            "messages": messages,
+            "agent_name": agent_name,
+            "timestamp": conversation_timestamp,
+            "file_path": message_files[0],  # Use first file as reference
+            "filename": f"{conversation_timestamp}-{agent_name}.json",  # Synthetic filename
+            "message_count": len(messages),
+            "source_files": message_files,
+        }
+    
+    def visualize_from_directory(
+        self,
+        directory: str,
+        agent_name: Optional[str] = None,
+        output_filename: Optional[str] = None,
+        pattern: Optional[str] = None,
+    ) -> str:
+        """Visualize messages from a directory containing MessageHookProvider output files.
+        
+        Args:
+            directory: Directory containing message files
+            agent_name: Optional agent name to filter by (if None, uses first agent found)
+            output_filename: Output HTML filename (auto-generated if None)
+            pattern: Optional glob pattern to match files
+        
+        Returns:
+            Path to generated HTML file
+        """
+        # Find message files
+        message_files = self.find_message_files(directory, agent_name, pattern)
+        
+        if not message_files:
+            raise ValueError(
+                f"No message files found in {directory}"
+                + (f" for agent '{agent_name}'" if agent_name else "")
+            )
+        
+        print(f"Found {len(message_files)} message file(s)")
+        
+        # Consolidate messages
+        conversation = self.consolidate_messages(message_files)
+        
+        print(f"Consolidated {conversation['message_count']} messages from agent '{conversation['agent_name']}'")
+        
+        # Create visualization
+        return self.create_visualization(
+            messages=conversation["messages"],
+            agent_name=conversation["agent_name"],
+            timestamp=conversation["timestamp"],
+            output_filename=output_filename,
+        )
+    
+    def visualize_from_files(
+        self,
+        message_files: List[str],
+        output_filename: Optional[str] = None,
+    ) -> str:
+        """Visualize messages from a list of message file paths.
+        
+        Args:
+            message_files: List of paths to individual message JSON files
+            output_filename: Output HTML filename (auto-generated if None)
+        
+        Returns:
+            Path to generated HTML file
+        """
+        if not message_files:
+            raise ValueError("No message files provided")
+        
+        # Consolidate messages
+        conversation = self.consolidate_messages(message_files)
+        
+        print(f"Consolidated {conversation['message_count']} messages from agent '{conversation['agent_name']}'")
+        
+        # Create visualization
+        return self.create_visualization(
+            messages=conversation["messages"],
+            agent_name=conversation["agent_name"],
+            timestamp=conversation["timestamp"],
+            output_filename=output_filename,
+        )
+    
+    def create_consolidated_json(
+        self,
+        message_files: List[str],
+        output_path: Optional[str] = None,
+    ) -> str:
+        """Create a consolidated JSON file from message files.
+        
+        This creates a simple JSON array containing all messages.
+        
+        Args:
+            message_files: List of paths to individual message JSON files
+            output_path: Output JSON file path (auto-generated if None)
+        
+        Returns:
+            Path to generated JSON file
+        """
+        conversation = self.consolidate_messages(message_files)
+        
+        # Create output path if not provided
+        if output_path is None:
+            timestamp = datetime.now().strftime("%Y%m%d%H%M%S")
+            safe_agent_name = "".join(
+                c for c in conversation["agent_name"] if c.isalnum() or c in ("-", "_")
+            )
+            output_path = os.path.join(
+                self.output_dir,
+                f"{timestamp}-{safe_agent_name}-consolidated.json",
+            )
+        
+        # Write consolidated messages as JSON array
+        with open(output_path, "w", encoding="utf-8") as f:
+            json.dump(conversation["messages"], f, indent=2, ensure_ascii=False)
+        
+        print(f"Consolidated JSON saved to: {output_path}")
+        return output_path
+    
+    def create_visualization(
+        self,
+        messages: List[Dict[str, Any]],
+        agent_name: str,
+        timestamp: str,
+        output_filename: Optional[str] = None
+    ) -> str:
+        """Create HTML visualization from messages.
+        
+        Args:
+            messages: List of conversation messages
+            agent_name: Name of the agent
+            timestamp: Timestamp string
+            output_filename: Optional output filename
+        
+        Returns:
+            Path to generated HTML file
+        """
+        # Parse messages into graph structure
+        graph = self.parse_messages(messages)
+        
+        # Create metadata
+        metadata = {
+            "agent_name": agent_name,
+            "timestamp": timestamp,
+            "message_count": len(messages),
+            "node_count": len(graph["nodes"])
+        }
+        
+        # Complete data structure
+        viz_data = {
+            "metadata": metadata,
+            "nodes": graph["nodes"],
+            "edges": graph["edges"]
+        }
+        
+        # Generate HTML
+        if output_filename is None:
+            timestamp_str = datetime.now().strftime("%Y%m%d%H%M%S")
+            output_filename = f"conversation_visualization_{timestamp_str}.html"
+        
+        output_path = os.path.join(self.output_dir, output_filename)
+        html_content = self._generate_html(viz_data)
+        
+        with open(output_path, "w", encoding="utf-8") as f:
+            f.write(html_content)
+        
+        return output_path
+    
     def parse_messages(self, messages: List[Dict[str, Any]]) -> Dict[str, Any]:
         """Parse messages into a simple node structure.
-
+        
         Returns a graph structure with nodes and edges:
         - Each node represents an assistant response + user response pair
         - Tool executions are included within the node
@@ -31,11 +341,11 @@ class ConversationVisualizer:
         edges = []
         i = 0
         node_index = 0
-
+        
         while i < len(messages):
             msg = messages[i]
             role = msg.get("role", "unknown")
-
+            
             if role == "user" and i == 0:
                 # First user message - standalone node
                 node = {
@@ -45,27 +355,27 @@ class ConversationVisualizer:
                     "raw_message": msg
                 }
                 nodes.append(node)
-
+                
                 # Add edge to next node
                 if i + 1 < len(messages):
                     edges.append({
                         "from": f"node_{node_index}",
                         "to": f"node_{node_index + 1}"
                     })
-
+                
                 node_index += 1
                 i += 1
-
+                
             elif role == "assistant":
                 # Check if this has tool use
                 has_tool_use = self._has_tool_use(msg)
-
+                
                 if has_tool_use and i + 1 < len(messages):
                     next_msg = messages[i + 1]
                     if next_msg.get("role") == "user":
                         # Assistant request + user response (tool execution cycle)
                         tool_executions = self._extract_tool_executions(msg, next_msg)
-
+                        
                         node = {
                             "id": f"node_{node_index}",
                             "type": "tool_execution",
@@ -74,18 +384,18 @@ class ConversationVisualizer:
                             "raw_messages": [msg, next_msg]
                         }
                         nodes.append(node)
-
+                        
                         # Add edge to next node
                         if i + 2 < len(messages):
                             edges.append({
                                 "from": f"node_{node_index}",
                                 "to": f"node_{node_index + 1}"
                             })
-
+                        
                         node_index += 1
                         i += 2
                         continue
-
+                
                 # Assistant standalone response
                 node = {
                     "id": f"node_{node_index}",
@@ -94,22 +404,22 @@ class ConversationVisualizer:
                     "raw_message": msg
                 }
                 nodes.append(node)
-
+                
                 # Add edge to next node
                 if i + 1 < len(messages):
                     edges.append({
                         "from": f"node_{node_index}",
                         "to": f"node_{node_index + 1}"
                     })
-
+                
                 node_index += 1
                 i += 1
-
+        
         return {
             "nodes": nodes,
             "edges": edges
         }
-
+    
     def _has_tool_use(self, msg: Dict[str, Any]) -> bool:
         """Check if message has tool use."""
         content = msg.get("content", [])
@@ -118,11 +428,11 @@ class ConversationVisualizer:
                 if isinstance(block, dict) and "toolUse" in block:
                     return True
         return False
-
+    
     def _extract_tool_executions(self, assistant_msg: Dict[str, Any], user_msg: Dict[str, Any]) -> List[Dict[str, Any]]:
         """Extract tool executions from assistant and user messages."""
         tool_executions = []
-
+        
         # Extract tool calls from assistant message
         assistant_content = assistant_msg.get("content", [])
         tool_calls = {}
@@ -137,7 +447,7 @@ class ConversationVisualizer:
                             "input": tool_use.get("input", {}),
                             "toolUseId": tool_use_id,
                         }
-
+        
         # Extract tool results from user message
         user_content = user_msg.get("content", [])
         if isinstance(user_content, list):
@@ -156,7 +466,7 @@ class ConversationVisualizer:
                                 result_text = self._normalize_json_string(result_text)
                             else:
                                 result_text = json.dumps(result_content, indent=2)
-
+                        
                         tool_executions.append({
                             "tool_name": tool_call["name"],
                             "toolUseId": tool_use_id,
@@ -164,17 +474,17 @@ class ConversationVisualizer:
                             "tool_result": result_text,
                             "tool_status": tool_result.get("status", "unknown"),
                         })
-
+        
         return tool_executions
-
+    
     def _normalize_json_string(self, text: str) -> str:
         """Try to normalize Python dict strings to valid JSON.
-
+        
         Converts single quotes to double quotes if it looks like a Python dict.
         """
         if not text:
             return text
-
+        
         # Try to parse as Python literal (handles single quotes)
         try:
             import ast
@@ -185,7 +495,7 @@ class ConversationVisualizer:
         except (ValueError, SyntaxError):
             # Not a Python literal, return as-is
             return text
-
+    
     def _extract_text(self, content: Any) -> str:
         """Extract text from content blocks."""
         if isinstance(content, str):
@@ -208,61 +518,12 @@ class ConversationVisualizer:
                     texts.append(block)
             return "\n".join(texts)
         return str(content)
-
-    def create_visualization(
-        self,
-        messages: List[Dict[str, Any]],
-        agent_name: str,
-        timestamp: str,
-        output_filename: Optional[str] = None
-    ) -> str:
-        """Create HTML visualization from messages.
-
-        Args:
-            messages: List of conversation messages
-            agent_name: Name of the agent
-            timestamp: Timestamp string
-            output_filename: Optional output filename
-
-        Returns:
-            Path to generated HTML file
-        """
-        # Parse messages into graph structure
-        graph = self.parse_messages(messages)
-
-        # Create metadata
-        metadata = {
-            "agent_name": agent_name,
-            "timestamp": timestamp,
-            "message_count": len(messages),
-            "node_count": len(graph["nodes"])
-        }
-
-        # Complete data structure
-        viz_data = {
-            "metadata": metadata,
-            "nodes": graph["nodes"],
-            "edges": graph["edges"]
-        }
-
-        # Generate HTML
-        if output_filename is None:
-            timestamp_str = datetime.now().strftime("%Y%m%d%H%M%S")
-            output_filename = f"conversation_visualization_{timestamp_str}.html"
-
-        output_path = os.path.join(self.output_dir, output_filename)
-        html_content = self._generate_html(viz_data)
-
-        with open(output_path, "w", encoding="utf-8") as f:
-            f.write(html_content)
-
-        return output_path
-
+    
     def _generate_html(self, viz_data: Dict[str, Any]) -> str:
         """Generate HTML with embedded visualization data."""
         # Convert data to JSON string
         data_json = json.dumps(viz_data, indent=2, ensure_ascii=False)
-
+        
         html = f"""<!DOCTYPE html>
 <html>
 <head>
@@ -905,5 +1166,6 @@ class ConversationVisualizer:
     </script>
 </body>
 </html>"""
-
+        
         return html
+

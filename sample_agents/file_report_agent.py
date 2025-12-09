@@ -1,6 +1,8 @@
 """Sample agent that lists files in ~/Downloads and creates a metadata report.
 
 This agent uses file tools to get file metadata (not contents) and creates a report.
+This version uses MessageHookProvider to capture messages in real-time as they're added
+to the conversation, rather than waiting for the end of the conversation.
 """
 
 import os
@@ -23,10 +25,10 @@ except ImportError:
     # python-dotenv not installed, skip loading .env file
     pass
 
-# Add parent directory to path to import custom conversation manager
+# Add parent directory to path to import message hook provider
 sys.path.insert(0, str(Path(__file__).parent.parent))
 
-from conversation_manager import CustomConversationManager
+from hooks import MessageHookProvider
 
 try:
     from strands.agent import Agent
@@ -98,8 +100,9 @@ def create_file_report_agent(
     storage_type: str = "local",
     storage_path: str = "conversations",
     s3_bucket: str = None,
+    use_realtime_hooks: bool = True,
 ):
-    """Create an agent that can list files and create reports.
+    """Create an agent that can list files and create reports with real-time message capture.
     
     Args:
         anthropic_api_key: Anthropic API key (defaults to ANTHROPIC_API_KEY env var)
@@ -108,9 +111,10 @@ def create_file_report_agent(
         storage_type: Storage backend type ('local' or 's3')
         storage_path: Local directory path or S3 prefix
         s3_bucket: S3 bucket name (required if storage_type is 's3')
+        use_realtime_hooks: Whether to use real-time message hooks (default: True)
     
     Returns:
-        Configured Agent instance with file listing tools
+        Configured Agent instance with file listing tools and real-time message capture
     """
     # Get API key from parameter or environment
     api_key = anthropic_api_key or os.getenv("ANTHROPIC_API_KEY")
@@ -127,38 +131,46 @@ def create_file_report_agent(
         max_tokens=max_tokens,
     )
     
-    # Initialize custom conversation manager
-    conversation_manager = CustomConversationManager(
-        window_size=40,
-        should_truncate_results=True,
-        storage_type=storage_type,
-        storage_path=storage_path,
-        s3_bucket=s3_bucket,
-    )
+    # Create hooks list
+    hooks = []
     
-    # Create agent with the file listing tool (decorated function)
+    # Add real-time message hook provider if requested
+    if use_realtime_hooks:
+        message_hook = MessageHookProvider(
+            storage_type=storage_type,
+            storage_path=storage_path,
+            s3_bucket=s3_bucket,
+            agent_name="FileReportAgent",
+        )
+        hooks.append(message_hook)
+    
+    # Create agent with the file listing tool and hooks only (no custom conversation manager)
+    # Strands will use the default SlidingWindowConversationManager for conversation management
     agent = Agent(
         name="FileReportAgent",
         model=llm,
-        conversation_manager=conversation_manager,
         tools=[list_directory_files],  # Pass the decorated function directly
+        hooks=hooks,  # Pass hooks for real-time message capture
     )
     
     return agent
 
 
 def main():
-    """Run the file report agent to analyze ~/Downloads directory."""
-    print("Creating file report agent...")
+    """Run the file report agent to analyze ~/Downloads directory with real-time message capture."""
+    print("Creating file report agent with real-time message hooks...")
     
     try:
-        # Create agent with local storage
+        # Create agent with real-time hooks enabled
         agent = create_file_report_agent(
             storage_type="local",
             storage_path="conversations",
+            use_realtime_hooks=True,
         )
         
         print("\nAgent created successfully!")
+        print("Real-time message capture is enabled.")
+        print("Messages will be saved immediately as they're added to the conversation.\n")
         print("Analyzing ~/Downloads directory...\n")
         
         # Get the Downloads directory path
@@ -193,8 +205,10 @@ def main():
         print("=" * 80)
         
         print("\nConversation completed!")
-        print(f"Messages have been saved to the 'conversations' directory.")
-        print("Check the directory for files named: <timestamp>-FileReportAgent.json")
+        print(f"Messages have been saved in real-time to the 'conversations' directory.")
+        print("Check the directory for files named: <timestamp>-FileReportAgent-msg<number>-<role>.json")
+        print("\nNote: Each message (LLM response and tool results) was saved immediately")
+        print("to a separate file when it was added to the conversation, not at the end.")
         
     except Exception as e:
         print(f"Error: {e}")

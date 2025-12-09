@@ -8,8 +8,7 @@ from pathlib import Path
 # Add parent directory to path
 sys.path.insert(0, str(Path(__file__).parent.parent))
 
-from visualizer.conversation_visualizer import ConversationVisualizer
-from visualizer.hook_message_visualizer import HookMessageVisualizer
+from visualizer.message_visualizer import MessageVisualizer
 
 
 def main():
@@ -65,42 +64,19 @@ def main():
         sys.exit(1)
 
     try:
-        # Use HookMessageVisualizer to find and consolidate messages
-        hook_viz = HookMessageVisualizer(output_dir=args.output_dir)
+        # Use MessageVisualizer to find and consolidate messages
+        visualizer = MessageVisualizer(output_dir=args.output_dir)
 
         print(f"Searching for message files in: {args.directory}")
         if args.agent_name:
             print(f"Filtering by agent name: {args.agent_name}")
 
-        # Find message files
-        message_files = hook_viz.find_message_files(
-            args.directory,
-            args.agent_name,
-            args.pattern,
-        )
-
-        if not message_files:
-            print(
-                f"Error: No message files found in {args.directory}"
-                + (f" for agent '{args.agent_name}'" if args.agent_name else ""),
-                file=sys.stderr
-            )
-            sys.exit(1)
-
-        print(f"Found {len(message_files)} message file(s)")
-
-        # Consolidate messages
-        conversation = hook_viz.consolidate_messages(message_files)
-        print(f"Consolidated {conversation['message_count']} messages from agent '{conversation['agent_name']}'")
-
-        # Create visualization
-        visualizer = ConversationVisualizer(output_dir=args.output_dir)
-
-        output_path = visualizer.create_visualization(
-            messages=conversation["messages"],
-            agent_name=conversation["agent_name"],
-            timestamp=conversation["timestamp"],
+        # Find and visualize messages
+        output_path = visualizer.visualize_from_directory(
+            directory=args.directory,
+            agent_name=args.agent_name,
             output_filename=args.output,
+            pattern=args.pattern,
         )
 
         print(f"\n✓ Visualization generated successfully!")

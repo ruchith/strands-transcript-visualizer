@@ -1,6 +1,5 @@
 """Visualization tools for agent conversations."""
 
-from .conversation_visualizer import ConversationVisualizer
-from .hook_message_visualizer import HookMessageVisualizer
+from .message_visualizer import MessageVisualizer
 
-__all__ = ["ConversationVisualizer", "HookMessageVisualizer"]
+__all__ = ["MessageVisualizer"]
