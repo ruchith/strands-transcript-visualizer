@@ -630,8 +630,11 @@ class MessageVisualizer:
             border-radius: 4px;
             margin: 10px 0;
             word-wrap: break-word;
+            overflow-wrap: break-word;
             font-size: 13px;
             line-height: 1.6;
+            max-width: 100%;
+            box-sizing: border-box;
         }}
 
         .content-block pre {{
@@ -640,12 +643,16 @@ class MessageVisualizer:
             padding: 15px;
             border-radius: 4px;
             overflow-x: auto;
+            overflow-wrap: break-word;
+            word-wrap: break-word;
+            white-space: pre-wrap;
             margin: 10px 0;
             font-family: 'Monaco', 'Menlo', 'Ubuntu Mono', 'Consolas', monospace;
             font-size: 13px;
             line-height: 1.5;
             tab-size: 2;
             -moz-tab-size: 2;
+            max-width: 100%;
         }}
 
         .content-block code {{
@@ -661,7 +668,10 @@ class MessageVisualizer:
             padding: 0;
             color: #f8f8f2;
             font-size: 13px;
-            white-space: pre;
+            white-space: pre-wrap;
+            word-wrap: break-word;
+            overflow-wrap: break-word;
+            max-width: 100%;
         }}
 
         .content-block h1, .content-block h2, .content-block h3 {{
@@ -704,10 +714,14 @@ class MessageVisualizer:
             padding: 5px;
             border-radius: 4px;
             margin: 10px 0;
+            max-width: 100%;
+            overflow-wrap: break-word;
         }}
 
         .tool-input-box .content-block {{
             background: #f5f5f5;
+            max-width: 100%;
+            overflow-wrap: break-word;
         }}
 
         .tool-result-box {{
@@ -716,10 +730,14 @@ class MessageVisualizer:
             padding: 5px;
             border-radius: 4px;
             margin: 10px 0;
+            max-width: 100%;
+            overflow-wrap: break-word;
         }}
 
         .tool-result-box .content-block {{
             background: #fafafa;
+            max-width: 100%;
+            overflow-wrap: break-word;
         }}
 
         /* Graph visualization */

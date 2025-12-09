@@ -214,7 +214,7 @@ def get_git_log(repo_dir: str, max_commits: int = 100) -> dict:
 def create_repo_analysis_agent(
     anthropic_api_key: str = None,
     model: str = "claude-sonnet-4-5",
-    max_tokens: int = 8192,
+    max_tokens: int = 32000,
     storage_type: str = "local",
     storage_path: str = "conversations",
     s3_bucket: str = None,
